@@ -1,0 +1,67 @@
+#!/usr/bin/env node
+require('dotenv').config({ path: `${__dirname}/../.env` });
+
+const path = require('path');
+const fs = require('fs');
+const { exec } = require('child_process');
+
+const basename = path.basename(__filename);
+const Verbs = require('./on/index.js');
+const Dasher = require('../src/index.js');
+const Client = new Dasher.Client();
+
+const usage = () => {
+  text =
+  `
+Usage: ${basename} <verb> <argument>
+
+Verbs:
+${'\t' + Object.keys(Verbs).join('\n\t')}
+
+${__dirname}/on/<verb>.sh is ran if it exists, useful for sending a text/email.
+  `;
+
+  return console.log(text);
+}
+
+const exeProg = (command) => {
+  const child = exec(command, (error) => {
+    if (error) throw error;
+  });
+
+  child.stdout.on('data', function(data) {
+    console.log(data);
+  });
+}
+
+const main = (verb, argument) => {
+  const execute = Verbs[verb];
+
+  if (!(execute)) {
+    usage();
+    throw new Error('Missing/Bad Argument');
+  }
+  // else
+  execute(Client, argument).then((result) => {
+    result = Array.isArray(result)
+    ? result
+    : [result];
+
+    result.forEach((element) => {
+      // support for argv -> (etc. $1 $2 $3) ->
+      element = Array.isArray(element)
+      ? element
+      : [element];
+      element = element.map(e => `${'"'+e.replace(/(["$`\\])/g,'\\$1')+'"'}`).join(" ");
+
+      let command = `${__dirname}/on/${verb}.sh ${element}`;
+      exeProg(command);
+    });
+  })
+}
+
+const mainWrapper = (array) => {
+  return main(...array);
+}
+
+mainWrapper([...process.argv].slice(2));
