@@ -388,13 +388,13 @@ const parseOrder = (order) => {
       asap: order.is_asap,
       merchant: order.is_from_store_to_us,
       preassign: order.is_preassign,
-      redcard: order.is_from_store_to_us,
+      redcard: order.requires_payment_card,
       alcohol: order.barcode_scanning_required,
       signable: order.signature_required,
       returnable: order.is_returnable_delivery,
       route: order.is_route,
       contactless: order.is_contactless_delivery,
-      stack: (order.dasher_accept_assignment_max_seconds >= 50),
+      stack: (order.dasher_accept_assignment_max_seconds >= 50), // TODO: Better check
       merchant_stack: (order.package_details.delivery_count > 1),
       // XXX: Find the meaning of ^^^, not sure if `order` object tracks dasher's 'packages'?
     }
@@ -412,12 +412,12 @@ class Orders extends Action {
   }
 
   /* Helper functions:
-   * accept, unassign, metadata
+   * accept, unassign, metadata, etc...
    * order is optional, passing it allows for error checking.
    * Should be a parsed order object from Order.handle()
    */
 
-  accept(id, order = null) {
+  accept(id, order = null, self = this) {
     if (!(id) && (order)) {
       id = order.id;
     }
@@ -431,15 +431,17 @@ class Orders extends Action {
     if (!(id)) return new Error(`id is ${id} (false value).`);
     if (process.env.DEBUG_ORDER) return Promise.resolve(`debug accept ${id}`);
     // else
-    return new this.APIRequest(
+    return new self.APIRequest(
       'post',
-      `/v3/deliveries/${id}/confirm_dasher/?extra=dasher_confirmed_time`,
+      `/v5/deliveries/${id}/confirm_dasher/?extra=dasher_confirmed_time`,
     );
   }
 
-  unassign(id, order = null, ) {
+  unassign(id, order = null, self = this) {
+    let drive = false;
     if (!(id) && (order)) {
       id = order.id;
+      // drive = order.is_drive...
     }
 
     if (order) {
@@ -453,9 +455,9 @@ class Orders extends Action {
     if (!(id)) return new Error(`id is ${id} (false value).`);
     if (process.env.DEBUG_ORDER) return Promise.resolve(`debug unassign ${id}`);
     // else
-    return new this.APIRequest(
+    return new self.APIRequest(
       'post',
-      `/v2/deliveries/${id}/unassign/?extra=id&extra=package_details`,
+      `/v5/deliveries/${id}/unassign/?extra=id&extra=package_details`,
       {
         reason: 'other',
         is_early_assignment: (!!(drive)),
@@ -463,11 +465,73 @@ class Orders extends Action {
     );
   }
 
-  metadata(id) {
+  metadata(id, order = null, self = this) {
     // metadata 'confirms' to server that we're still active
-    return false; // XXX: this requires a 'shift_id'?
-    // /v4/deliveries/{id}/dasher_events/
+    if (!(id) && (order)) {
+      id = order.id;
+    }
+
+    return self.getDash.then((dash) => {
+      return new self.APIRequest(
+        'post',
+        `/v4/deliveries/${id}/dasher_events/`,
+        {
+          metadata: { shift_id: dash.id },
+          type: "received_assignment",
+        },
+        { cache: false },
+      );
+    });
   }
+
+  pickup(id, order = null, self = this) {
+    if (!(id) && (order)) {
+      id = order.id;
+    }
+
+    return new self.APIRequest(
+      'post',
+      `/v5/deliveries/${id}/pick_up/`,
+      {
+        extra: "actual_pickup_time",
+      },
+      { cache: false },
+    );
+  }
+
+  maskednumbers(id, order = null, self = this) {
+    if (!(id) && (order)) {
+      id = order.id;
+    }
+
+    return new self.APIRequest(
+      'post',
+      `/v5/deliveries/${id}/masked_number/`,
+      {
+        destinations : [
+          'customer',
+        ],
+        source: 'dasher',
+      },
+      { cache: false },
+    );
+  }
+
+  communication(id, order = null, self = this) {
+    // (???)  { enforce_dasher_contacting_consumer: false }
+    if (!(id) && (order)) {
+      id = order.id;
+    }
+
+    return new self.APIRequest(
+      'get',
+      `/v4/deliveries/${id}/communication_log/`,
+      {},
+      { cache: false },
+    );
+  }
+
+  /* END ACTIONS */
 
   handle(data) {
     return Promise.resolve(data).then((orders) => {
@@ -486,21 +550,45 @@ class Orders extends Action {
 
 
         // wrappers to accept, unassign
-        const fnGen = (fn, order) => {
+        const fnGen = (fn, order, self = this) => {
           return () => {
-            return fn(null, order);
+            return fn(null, order, self);
           }
         }
 
         Object.defineProperties(result[index], {
           acceptfn: {
-            value: fnGen(this.accept, result[index]),
+            value: fnGen(this.accept, result[index], this),
             enumerable: true,
             configurable: true,
           },
 
           declinefn: {
-            value: fnGen(this.unassign, result[index]),
+            value: fnGen(this.unassign, result[index], this),
+            enumerable: true,
+            configurable: true,
+          },
+
+          receivedfn: {
+            value: fnGen(this.metadata, result[index], this),
+            enumerable: true,
+            configurable: true,
+          },
+
+          pickupfn: {
+            value: fnGen(this.pickup, result[index], this),
+            enumerable: true,
+            configurable: true,
+          },
+
+          contactfn: {
+            value: fnGen(this.maskednumbers, result[index], this),
+            enumerable: true,
+            configurable: true,
+          },
+
+          commsfn: {
+            value: fnGen(this.communication, result[index], this),
             enumerable: true,
             configurable: true,
           },
@@ -534,10 +622,40 @@ class Orders extends Action {
     return this.fetchOrder;
   }
 
+  fetchHistory(dash, handle = true) {
+    if (typeof dash !== 'number') {
+      console.error(new Error('Trying to view an invalid dash'));
+      return [];
+    }
+
+    return (
+      new this.APIRequest(
+        'get',
+        `v1/dashes/${dash}/deliveries/`,
+        query_orders,
+      )
+    ).then((data) => {
+      if (handle) {
+        data = this.handle(data);
+      }
+
+      return data;
+    });
+  }
+
+  getOrder(id) {
+    return new this.APIRequest(
+      'get',
+      `/v5/deliveries/${id}/`,
+      query_orders,
+      { cache: false },
+    )
+  }
+
   get fetchActive() {
     return this.getDash.then((dash) => {
       if (!(dash.live)) {
-        console.error(new Error(`Trying to view non-live dash`));
+        console.error(new Error('Trying to view non-live dash'));
         return [];
       }
 
@@ -557,14 +675,7 @@ class Orders extends Action {
 
       array.forEach((element) => {
         let id = parseID(element);
-        promises.push(
-          new this.APIRequest(
-            'get',
-            `/v5/deliveries/${id}/`,
-            query_orders,
-            { cache: false },
-          )
-        );
+        promises.push(this.getOrder(id));
       });
 
       return Promise.all(promises);

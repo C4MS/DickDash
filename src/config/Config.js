@@ -1,6 +1,6 @@
 'use strict';
 try {
-  require('dotenv').config();
+  require('dotenv').config({ path: `${__dirname}/../../.env`});
 } catch {
   // do nothing
 }
@@ -103,7 +103,7 @@ const tryWebtoken = async () => {
   let result = {
     'host': URL,
     'token': data.token,
-    'cookie': process.env.DOORDASH_COOKIE || null,
+    'cookie': require('./cookie-generator'),
     'user-agent': process.env.DOORDASH_AGENT || defaults['user-agent'],
     'newrelic-id': process.env.DOORDASH_NEWRELIC || defaults['newrelic-id'],
     'version': process.env.DOORDASH_AGENT || defaults['version'],

@@ -6,6 +6,12 @@ const https = require('https');
     Emulate this behavior to some degree.
 */
 const gpsDrift = (input) => {
+  input = Number(input);
+  if (
+    (typeof input !== 'number')
+    || (isNaN(input))
+  ) return NaN;
+
   const floor = (1 + ("0".repeat(16)));
   const max = 0.0001
   const min = 0.0000001
@@ -55,4 +61,43 @@ const useEnvironment = () => {
   return Promise.resolve(result);
 }
 
-module.exports = useWebsite;
+const useDummy = () => {
+  console.warn("Using dummy values for location, this could be bad...");
+
+  let result = { lat: 0, lng: 0 };
+  return Promise.resolve(result);
+}
+
+// main:
+const checkLocation = (object) => {
+  // console.debug("checkLocation: ->", object);
+  if (
+       !(object.lat)
+    || !(object.lng)
+    || (typeof object.lat !== 'number')
+    || (typeof object.lng !== 'number')
+    || (isNaN(object.lat))
+    || (isNaN(object.lng))
+  ) return Promise.reject('Bad Value');
+  // else
+  return object;
+}
+
+const resolveLocation = (c = 0) => {
+  return arrayfn[c]()
+    .then((result) => {
+      return checkLocation(result);
+    })
+    .catch(() => {
+      c += 1;
+      return resolveLocation(c);
+    });
+}
+
+// TODO: write more ways to get location.
+let arrayfn = [
+  useEnvironment,
+  useWebsite,
+  useDummy, // always true
+]
+module.exports = resolveLocation;

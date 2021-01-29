@@ -27,7 +27,7 @@ class APIRequest {
     }
     this.path = `${path}${queryString && `?${queryString}`}`;
 
-    return this.request();
+    return this.request(this);
   }
 
   request(self = this) {
@@ -82,6 +82,7 @@ class APIRequest {
       return response.data;
     })
     .catch((error) => {
+      console.warn("error in APIRequest - global.debug_api = error");
       try {
         let { data, status, statusText, headers, request } = error.response;
       } catch(e) {
@@ -89,11 +90,13 @@ class APIRequest {
         throw e;
       }
 
-      if (status === 400) {
+      global.debug_api = error;
+
+      if (status && status === 400) {
         return data;
       }
 
-      if (0) { // DEBUG
+      if (1) { // DEBUG
       console.error(
         "Error in APIRequest",
         '\n',

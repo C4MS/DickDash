@@ -53,6 +53,14 @@ class Ratings extends Action {
         lifetime: ratings.num_lifetime_deliveries,
 
         updated: new Date(ratings.updated_at),
+
+        details: (
+          (new this.APIRequest('get', '/v1/dashers/me/rating_detail/'))
+          .then((data) => {
+            // TODO(?) format when released.
+            return data;
+          })
+        ),
       }
     });
   }

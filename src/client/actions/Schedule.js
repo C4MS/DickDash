@@ -1,7 +1,6 @@
 'use strict';
 const Action = require("./Action");
 const Areas = require('./Areas');
-const Dashes = require('./Dashes');
 const querystring = require('querystring');
 
 const query_schedule = '?' + querystring.stringify({
@@ -52,6 +51,28 @@ const dateNearest = (date = Date()) => {
   }
 }
 
+const dateFormatter = (input = Date()) => {
+  // format: YYY-DD-MM + T + ss + GMT
+  const format = (date) => {
+    const iso     = date.toISOString();
+    const string  = date.toString();
+
+    return (
+      iso.replace(/\..+/, '')
+      + string.match(/-[0-9]*/g)[0].replace(/00/, ':00')
+    );
+  }
+
+  if ((typeof input === 'string') && (input.match(/-[0-9]+:[0-9]+$/))) {
+    // TODO: better test
+    // already formatted.
+    // console.error("Already formatted");
+    return input;
+  }
+
+  return format(new Date(input));
+}
+
 class Schedule extends Action {
   constructor() {
     super();
@@ -62,7 +83,8 @@ class Schedule extends Action {
   }
 
   get Areas() {
-    this.areasCached = this.areasCached ?? (new Areas()).fetch
+    this.updateArea(0);
+    this.areasCached = this.areasCached || (new Areas()).fetch
 
     return this.areasCached;
   }
@@ -95,8 +117,8 @@ class Schedule extends Action {
     // self == this
     return self.baseQuery({
       starting_point: String(id),
-      scheduled_start_time: Dashes.date(start),
-      scheduled_end_time: Dashes.date(end),
+      scheduled_start_time: dateFormatter(start),
+      scheduled_end_time: dateFormatter(end),
     }).then((query_set) => {
       // console.error(">>>", query_set);
       return (new self.APIRequest('post', `/v1/dashes/${query_schedule}`, query_set, { uuid: true }))
@@ -153,8 +175,8 @@ class Schedule extends Action {
     }
 
     const query_change = {
-      scheduled_start_time: Dashes.date(start),
-      scheduled_end_time: Dashes.date(end),
+      scheduled_start_time: dateFormatter(start),
+      scheduled_end_time: dateFormatter(end),
     };
 
     return new this.APIRequest('patch', `/v1/dashes/${id}/`, query_change);
@@ -205,7 +227,7 @@ class Schedule extends Action {
         schedule.forEach((element) => {
           const id = Number(element.starting_point);
 
-          result[id] ?? (
+          result[id] || (
             result[id] = {
               name: `${map[id] || "?"}`,
               slots: [],

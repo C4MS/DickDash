@@ -20,7 +20,7 @@ class Fastpay extends Action {
   fp(self = this) {
     return self.fetch.then((data) => {
       const status = data.status;
-      console.error(status);
+      // console.error(status);
 
       if (status !== OK) throw new Error(ERROR[status]);
 

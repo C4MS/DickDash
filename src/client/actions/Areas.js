@@ -51,7 +51,7 @@ class Areas extends Action {
             },
 
             location: {
-              isfar: element.is_outside_dasher_current_market,
+              isfar: !!(element.is_outside_dasher_current_market),
               coords: point(element.location),
               polyline: element.encoded_polyline,
               hotspots: pointArray(element.hotspots),
@@ -59,7 +59,7 @@ class Areas extends Action {
           }
         });
 
-        // if (area == 'all') ->
+        // if (area == 'curret dash') ->
         if (result.length === 1) return result[0];
         // else
         return result;
@@ -70,16 +70,34 @@ class Areas extends Action {
   get fetch() {
     return this.getVehicle.then((vehicle) => {
       return Location().then((location) => {
-        return new this.APIRequest(
-          'get',
-          '/v2/starting_points/',
-          {
-            dasher: 'me',
-            lat: location.lat,
-            lng: location.lng,
-            vehicle_type: vehicle.vehicle_type.id,
-          }
-        );
+        const request = (query = {}) => {
+          query['dasher'] = 'me';
+
+          return new this.APIRequest(
+            'get',
+            '/v2/starting_points/',
+            query,
+          );
+        };
+
+        let query_areas = {
+          lat: location.lat,
+          lng: location.lng,
+          vehicle_type: vehicle.vehicle_type.id,
+        };
+
+        // fall-safe if GPS data is wrong and we don't find our home-area in the original data.
+        return Promise.resolve(request(query_areas)).then((areas) => {
+          return this.getUser.then((user) => {
+            if (!(areas.some(e => e.id === user.starting_point.id))) {
+              return request(/* query = {} */).then((home) => {
+                return [...home, ...areas];
+              });
+            }
+            // else
+            return areas;
+          });
+        });
       });
     });
   }
