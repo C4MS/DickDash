@@ -73,46 +73,25 @@ class APIRequest {
 
     // console.log(options);
     return axios(options)
+
     .then((response) => {
       if (process.env.DEBUG) { /* DEBUG */
         console.log(response.request)
         console.log(response.request.fromCache);
       }
 
+      // XXX: status === OK:
       return response.data;
     })
     .catch((error) => {
       console.warn("error in APIRequest - global.debug_api = error");
+      global.debug_api = error;
+
       try {
         let { data, status, statusText, headers, request } = error.response;
       } catch(e) {
         console.log(error);
         throw e;
-      }
-
-      global.debug_api = error;
-
-      if (status && status === 400) {
-        return data;
-      }
-
-      if (1) { // DEBUG
-      console.error(
-        "Error in APIRequest",
-        '\n',
-        `Status: ${status}, ${statusText}`,
-        '\n',
-        `Headers & request:`,
-      );
-      console.error(headers);
-      console.error('######');
-      console.error(request);
-
-      if ((0) || data.length <= 1024) {
-        console.error(`Data: ${data}`);
-      } else {
-        console.error(`Data: ${data.length} (not shown...)`)
-      }
       }
 
       throw error;

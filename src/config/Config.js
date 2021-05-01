@@ -13,7 +13,7 @@ try {
 /* Defaults */
 /* ############################## */
 const URL = 'https://api-dasher.doordash.com';
-const ACCEPT = 'application/json'
+// const URL = 'http://localhost'
 
 const iOS = {
   version: '2.98.1',
@@ -45,7 +45,7 @@ const tryEnviron = () => {
   let result = {
     'host': process.env.DOORDASH_API || URL,
     'token': process.env.DOORDASH_TOKEN,
-    'cookie': process.env.DOORDASH_COOKIE,
+    'cookie': process.env.DOORDASH_COOKIE || "",
     'user-agent': process.env.DOORDASH_AGENT || defaults['user-agent'],
     'newrelic-id': process.env.DOORDASH_NEWRELIC || defaults['newrelic-id'],
     'version': process.env.DOORDASH_VERSION || defaults['version'],
@@ -81,15 +81,16 @@ const tryWebtoken = async () => {
   let response = await fetch(url, {
     "headers": {
       "accept": "application/json",
+      "user-agent": `${defaults['user-agent']}`,
       "accept-language": "en-US,en",
-      "content-type": "application/json",
+      "content-type": "application/json;charset=UTF-8",
       "sec-fetch-dest": "empty",
       "sec-fetch-mode": "cors",
       "sec-fetch-site": "same-site",
-      "x-requested-with": "XMLHttpRequest"
+      "origin": "https://driver.doordash.com/",
+      "referer": "https://driver.doordash.com/",
     },
-    "referrer": "https://driver.doordash.com/",
-    "referrerPolicy": "no-referrer-when-downgrade",
+    "compress": false, // -> XXX: A change in API causes 'Accept-Encoding' to failed with 406 HTML error; A User-Agent is also required.
     "body": JSON.stringify(body),
     "method": "POST",
     "mode": "cors"
@@ -135,12 +136,21 @@ if (!(require.main === module)) {
 } else {
   // simple main thing.
   // FIXME: change to axios, was written before the switch.
-  console.log("Usage: set these environ variables to base64 encoded strings:");
-  console.log("DOORDASH_EMAIL");
-  console.log("DOORDASH_PASSWORD");
-  console.log("");
-  console.log("To get a useable token, else use a tool to intercept traffic and grab a token & cookie there.");
-  console.log("");
-  console.log("Result:");
-  tryWebtoken().then((x) => console.log(x));
+
+  process.stderr.write(
+  `
+Usage: set these environ variables to base64 encoded strings:
+  DOORDASH_EMAIL
+  DOORDASH_EMAIL
+
+...To get a useable token, else use a tool to intercept traffic and grab a token & cookie there.
+(Output is sent to stdout)
+
+### Result ###
+  `
+  );
+
+  tryWebtoken().then((x) => {
+    process.stdout.write(`${JSON.stringify(x, null, '\t')}`);
+  });
 }

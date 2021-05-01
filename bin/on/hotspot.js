@@ -7,7 +7,8 @@ module.exports = (client, argument) => {
 
   client.Actions.Areas.getArea.then(x => console.log(argument, x));
 
-  return client.Actions.Areas.get.then((areas) => {
+  return client.Actions.Areas.get.then((area) => {
+    client.Actions.Hotspots.cupcake = area;
     return client.Actions.Hotspots.get.then((hotspots) => {
       let result = [];
       let args;
@@ -16,7 +17,6 @@ module.exports = (client, argument) => {
         let element = [
           `At: ${location.name}`,
           `Order: ${location.orders}`,
-          `Index: ${Number(location.index).toFixed(2)}`,
           `GPS: ${location.point.geometry.coordinates}`,
           '', // \n
         ];
@@ -24,7 +24,7 @@ module.exports = (client, argument) => {
         result.push(element.join('\n'));
       });
 
-      result.push(`${areas.name} is ${areas.busyness.replace('_', ' ')}.`);
+      result.push(`${area.name} is ${area.busyness.replace('_', ' ')}.`);
 
       return result.join('\n');
     });

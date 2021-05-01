@@ -11,11 +11,12 @@ class Areas extends Action {
   handle(data) {
     // Resolve starting point, default if needed.
     return this.getArea.then((area) => {
-      return Promise.resolve(data).then((input) => {
+      return Promise.resolve(data).then((data) => {
+        data = Array.isArray(data) ? data : [data];
         let result = [];
-        let array = !!(area)
-        ? input.filter(e => e.id == area)
-        : input;
+        let array = (!!(area)) && (data.length > 1)
+          ? data.filter(e => e.id == area)
+          : data;
 
         const point = (object = { lat: 0, lng: 0 }) => {
           return turf.point([

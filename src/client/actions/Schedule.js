@@ -259,7 +259,7 @@ class Schedule extends Action {
   }
 
   get fetch() {
-    const WEEK = 7; // TODO: check if lastest day schedule is posted.
+    const WEEK = 8; // TODO: check if lastest day schedule is posted.
     const DAY = 1;
     let promises = [];
     let date = new Date();
